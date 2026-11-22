@@ -12,6 +12,7 @@ src/django_reportkit/
 ├── jobs/                   # models.py (ReportJob)، service.py، backends/ (sync, thread, celery)، storage.py، cleanup.py، tasks.py (Celery)
 ├── errors/                 # exceptions.py، messages.py (رسائل ودّية)، handlers.py (تسجيل + صفحة خطأ)
 ├── views/                  # preview.py، export.py، jobs.py، urls.py (report_urlpatterns)
+├── rest/                   # DRF اختياري: views.py، serializers.py (JSON)، permissions.py، errors.py، urls.py (Report.api_urls)
 ├── urls.py                 # روابط الـ Jobs (app_name = django_reportkit)
 └── templates/django_reportkit/
 ```
@@ -22,6 +23,7 @@ src/django_reportkit/
 - الصفوف عبر `values().iterator()`؛ لا تحوّلها إلى قائمة. المعاينة وحدها تستخدم Paginator.
 - الأخطاء: سجّل التفاصيل (`errors.handlers.log_error`) وأظهر `friendly_message` فقط.
 - كل الكتابة إلى ملفات مؤقتة أو storage، لا إلى الذاكرة.
+- واجهات HTML و REST تشترك في ExportPolicy و ReportJobs و ExportRunner؛ لا تكرر المنطق في views. في REST اسم المتغير `export_format` لأن `format` محجوز في DRF.
 
 ## التحقق
 
@@ -29,7 +31,7 @@ src/django_reportkit/
 
 ```powershell
 docker build -t reportkit-pdf D:/projects/console/reportkit
-docker run --rm -v "D:/projects/console/reportkit:/app" -v "D:/projects/console/django-reportkit:/dj" -w /dj reportkit-pdf sh -c "pip install -q 'Django>=4.2' pytest-django && pip install -q --no-deps -e /dj && python -m pytest -q"
+docker run --rm -v "D:/projects/console/reportkit:/app" -v "D:/projects/console/django-reportkit:/dj" -w /dj reportkit-pdf sh -c "pip install -q 'Django>=4.2' pytest-django djangorestframework && pip install -q --no-deps -e /dj && python -m pytest -q"
 ```
 
 بعد تعديل `ReportJob` شغّل `makemigrations django_reportkit` بالإعدادات `tests.settings`.

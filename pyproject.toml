@@ -36,8 +36,9 @@ pdf = ["pyreportkit[pdf]"]
 excel = ["pyreportkit[excel]"]
 word = ["pyreportkit[word]"]
 celery = ["celery>=5.3"]
-all = ["pyreportkit[all]", "celery>=5.3"]
-test = ["pytest>=8", "pytest-django>=4.8"]
+rest = ["djangorestframework>=3.14"]
+all = ["pyreportkit[all]", "celery>=5.3", "djangorestframework>=3.14"]
+test = ["pytest>=8", "pytest-django>=4.8", "djangorestframework>=3.14"]
 
 [project.urls]
 Homepage = "https://github.com/abdalaidrous/django-reportkit"

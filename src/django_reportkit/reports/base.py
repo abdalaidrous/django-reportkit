@@ -31,6 +31,9 @@ class Report:
     total_label = _("Total")
     page = {"margin": "12mm"}
     page_number = "{page} / {pages}"
+    table_title = None
+    table_style = None  # A pyreportkit TableStyle (density, stripes, borders, header style).
+    table_component_style = None  # A pyreportkit Style for the table box (margins, direction, ...).
     slug = None
 
     def __init__(self, params=None):
@@ -61,6 +64,15 @@ class Report:
         from ..views.urls import report_urlpatterns  # Deferred: views import reports.
 
         return report_urlpatterns(cls)
+
+    @classmethod
+    def api_urls(cls, **view_options):
+        """
+        Return the Django REST Framework URL patterns of this report's JSON preview and exports, for include().
+        """
+        from ..rest.urls import report_api_urlpatterns  # Deferred: optional, needs djangorestframework.
+
+        return report_api_urlpatterns(cls, **view_options)
 
     @classmethod
     def has_permission(cls, user):
@@ -149,7 +161,12 @@ class Report:
         """
         Build the report table over the rows, with the totals of every row.
         """
-        return TableBuilder().columns(*(column.table_column() for column in self.get_columns())).rows(rows).totals(self.total_row()).build()
+        builder = TableBuilder().columns(*(column.table_column() for column in self.get_columns())).rows(rows).totals(self.total_row()).title(self.table_title)
+        if self.table_style is not None:
+            builder.table_style(self.table_style)
+        if self.table_component_style is not None:
+            builder.style(self.table_component_style)
+        return builder.build()
 
     def total_row(self):
         """

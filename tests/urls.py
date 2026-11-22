@@ -7,4 +7,7 @@ urlpatterns = [
     path("reports/staff/", include(StaffReport.urls())),
     path("reports/public/", include(PublicMovementReport.urls())),
     path("reports/", include("django_reportkit.urls")),
+    path("api/reports/movements/", include(MovementReport.api_urls())),
+    path("api/reports/public/", include(PublicMovementReport.api_urls())),
+    path("api/reports/", include("django_reportkit.rest.urls")),
 ]

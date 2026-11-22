@@ -11,7 +11,8 @@ pyreportkit only lays them out.
 
 ```bash
 pip install django-reportkit             # HTML preview and exports
-pip install "django-reportkit[all]"      # + PDF, Excel, Word and Celery
+pip install "django-reportkit[all]"      # + PDF, Excel, Word, Celery and Django REST Framework
+pip install "django-reportkit[rest]"     # only the REST API
 ```
 
 ```python
@@ -82,6 +83,28 @@ Columns read `values()` fields, so related fields (`account__name`) and annotati
 `iterator()`. Columns take every pyreportkit `TableColumn` option. `Report` (without a model) is the base class for
 reports whose rows come from somewhere else: implement `get_rows()`, `count()`, `get_page()` and optionally
 `get_totals()`.
+
+## REST API (Django REST Framework)
+
+```python
+urlpatterns = [
+    path("api/reports/movements/", include(MovementReport.api_urls())),   # JSON preview and exports
+    path("api/reports/", include("django_reportkit.rest.urls")),          # job status and downloads
+]
+```
+
+Authentication is whatever `REST_FRAMEWORK` configures (session, token, JWT...); the report's `login_required` and
+`permission_required` still apply. `api_urls(authentication_classes=[...], throttle_classes=[...])` passes options to
+the views.
+
+| Request | Response |
+|---|---|
+| `GET api/reports/movements/?page=2&date_from=2026-11-01` | `{"count", "page", "pages", "next", "previous", "columns", "results", "totals", "filters", "downloads"}`; totals cover every filtered row. Invalid filters: `400 {"detail", "code": "report_filter", "errors": {...}}`. |
+| `GET api/reports/movements/export/xlsx/?...` | The file for a small report; `202 Accepted` with the job (and `Location: status_url`) for a large one; `413` with `"code": "export_too_large"` above `MAX_ROWS`. |
+| `GET api/reports/jobs/<id>/` | `{"id", "status", "label", "finished", "error", "rows", "status_url", "download_url", ...}`: poll until `finished`. |
+| `GET api/reports/jobs/<id>/download/` | The stored file, for the job's user. |
+
+Every error is JSON with a friendly `detail` and a stable `code`; the traceback only goes to the logs.
 
 ## How exports are delivered
 
