@@ -33,6 +33,11 @@ class MovementReport(ModelReport):
         return {"amount": totals["amount"]}
 
 
+class PublicMovementReport(MovementReport):
+    slug = "public-movements"
+    login_required = False
+
+
 class StaffReport(MovementReport):
     slug = "staff-movements"
     permission_required = "reportapp.view_movement"

@@ -20,3 +20,4 @@ TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "APP
 STORAGES = {"default": {"BACKEND": "django.core.files.storage.InMemoryStorage"}}
 REPORTKIT = {"JOB_BACKEND": "django_reportkit.jobs.backends.SyncBackend"}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+LOGIN_URL = "/login/"

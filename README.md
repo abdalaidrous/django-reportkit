@@ -74,6 +74,10 @@ urlpatterns = [
 | `reports/jobs/<id>/` | `django_reportkit:job` | The job's progress (`?format=json` for polling) and its download link. |
 | `reports/jobs/<id>/download/` | `django_reportkit:download` | The stored file, for the job's user. |
 
+Reports require a logged-in user: anonymous visitors are sent to `LOGIN_URL`. Set `login_required = False` for a
+public report; its background exports still ask for a login, since a job belongs to the user who started it and only
+that user (or staff) can follow and download it. `permission_required` adds Django permissions on top.
+
 Columns read `values()` fields, so related fields (`account__name`) and annotations work, and rows stream with
 `iterator()`. Columns take every pyreportkit `TableColumn` option. `Report` (without a model) is the base class for
 reports whose rows come from somewhere else: implement `get_rows()`, `count()`, `get_page()` and optionally

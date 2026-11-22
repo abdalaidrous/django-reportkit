@@ -1,9 +1,10 @@
 from django.urls import include, path
 
-from tests.reportapp.reports import MovementReport, StaffReport
+from tests.reportapp.reports import MovementReport, PublicMovementReport, StaffReport
 
 urlpatterns = [
     path("reports/movements/", include(MovementReport.urls())),
     path("reports/staff/", include(StaffReport.urls())),
+    path("reports/public/", include(PublicMovementReport.urls())),
     path("reports/", include("django_reportkit.urls")),
 ]

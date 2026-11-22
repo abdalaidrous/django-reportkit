@@ -20,6 +20,15 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
+def client(client, django_user_model):
+    """
+    A client logged in as a regular user: reports require a login by default.
+    """
+    client.force_login(django_user_model.objects.create_user("reader"))
+    return client
+
+
+@pytest.fixture
 def movements():
     """
     Five movements over two accounts, 1,500.00 in total.
@@ -87,6 +96,21 @@ class TestPreview:
         assert response.status_code == 400
         assert response.context["form"].errors
 
+    def test_login_is_required_by_default(self, movements):
+        from django.test import Client
+
+        response = Client().get(reverse("movement-report-preview"))
+        assert response.status_code == 302 and response["Location"].startswith("/login/?next=")
+        assert Client().get(reverse("public-movements-preview")).status_code == 200
+
+    @override_settings(REPORTKIT={"DIRECT_LIMITS": {"html": 3}, "JOB_BACKEND": "django_reportkit.jobs.backends.SyncBackend"})
+    def test_background_exports_need_a_login_even_on_public_reports(self, movements):
+        from django.test import Client
+
+        response = Client().get(reverse("public-movements-export", kwargs={"format": "html"}))
+        assert response.status_code == 302 and response["Location"].startswith("/login/")
+        assert not ReportJob.objects.exists()
+
     def test_permission_is_required(self, client, movements):
         assert client.get(reverse("staff-movements-preview")).status_code == 403
         user = User.objects.create_user("staff")
@@ -142,7 +166,6 @@ class TestExport:
 
     @override_settings(REPORTKIT={"DIRECT_LIMITS": {"html": 3}, "JOB_BACKEND": "django_reportkit.jobs.backends.SyncBackend"})
     def test_large_export_runs_as_a_job(self, client, movements, django_capture_on_commit_callbacks):
-        client.force_login(User.objects.create_user("owner"))  # Jobs are followed by the user who started them.
         with django_capture_on_commit_callbacks(execute=True):  # Jobs are submitted once their row is committed.
             response = client.get(reverse("movement-report-export", kwargs={"format": "html"}))
         job = ReportJob.objects.get()

@@ -26,6 +26,7 @@ class Report:
     filter_form = None
     formats = FORMATS
     paginate_by = None
+    login_required = True
     permission_required = None
     total_label = _("Total")
     page = {"margin": "12mm"}

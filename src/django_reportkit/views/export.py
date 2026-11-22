@@ -34,6 +34,8 @@ class ReportExportView(ReportViewMixin, View):
         delivery = ExportPolicy.decide(export_format, rows, report.formats)
 
         if delivery is Delivery.BACKGROUND:
+            if not self.request.user.is_authenticated:
+                return self.handle_no_permission()  # A background job belongs to a user; log in first.
             return self.start_background(report, export_format, rows)
 
         return self.download(report, export_format)

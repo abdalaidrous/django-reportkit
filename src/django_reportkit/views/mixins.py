@@ -1,21 +1,34 @@
-from django.core.exceptions import ImproperlyConfigured, PermissionDenied
+from django.contrib.auth.mixins import AccessMixin
+from django.core.exceptions import ImproperlyConfigured
+
 from ..reports.params import ReportParams
 
 
-class ReportViewMixin:
+class ReportViewMixin(AccessMixin):
     """
-    Build the view's report from the request and check that the user may see it.
+    Build the view's report from the request: anonymous users are sent to the login page (unless the report sets
+    login_required = False), and users without the report's permissions are denied.
     """
 
     report_class = None
 
-    def get_report(self):
+    def dispatch(self, request, *args, **kwargs):
         """
-        Return the report bound to the request parameters, or deny access.
+        Check access before the view runs.
         """
         report_class = self.get_report_class()
-        self.check_permission(report_class)
-        return report_class(ReportParams.from_request(self.request))
+        if report_class.login_required and not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not report_class.has_permission(request.user):
+            self.raise_exception = True
+            return self.handle_no_permission()
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_report(self):
+        """
+        Return the report bound to the request parameters.
+        """
+        return self.get_report_class()(ReportParams.from_request(self.request))
 
     def get_report_class(self):
         """
@@ -24,10 +37,3 @@ class ReportViewMixin:
         if self.report_class is None:
             raise ImproperlyConfigured(f"{self.__class__.__name__} must define report_class.")
         return self.report_class
-
-    def check_permission(self, report_class):
-        """
-        Deny access when the user lacks permission to view the report.
-        """
-        if not report_class.has_permission(self.request.user):
-            raise PermissionDenied
