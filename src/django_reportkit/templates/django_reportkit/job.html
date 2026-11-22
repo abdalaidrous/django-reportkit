@@ -1,0 +1,32 @@
+{% extends "django_reportkit/base.html" %}
+{% load i18n %}
+{% block title %}{{ job.title }}{% endblock %}
+{% block content %}
+<section class="rk-panel" id="rk-job" data-url="?format=json" data-poll="{{ poll_seconds }}">
+    <h1>{{ job.title }}</h1>
+    <p class="rk-muted">{% blocktrans with rows=job.rows format=job.format %}{{ rows }} rows, {{ format }}{% endblocktrans %}</p>
+    <p id="rk-job-status">{{ state.label }}</p>
+    <p id="rk-job-error" class="rk-message"{% if not state.error %} hidden{% endif %}>{{ state.error }}</p>
+    <a id="rk-job-download" class="rk-button rk-button--primary" href="{{ state.download_url|default:'#' }}"{% if not state.download_url %} hidden{% endif %}>{% trans "Download" %}</a>
+    <noscript><p class="rk-muted">{% trans "Reload this page to see the progress." %}</p></noscript>
+</section>
+<script>
+(function () {
+    var panel = document.getElementById("rk-job");
+    function show(state) {
+        document.getElementById("rk-job-status").textContent = state.label;
+        var error = document.getElementById("rk-job-error"), link = document.getElementById("rk-job-download");
+        error.textContent = state.error; error.hidden = !state.error;
+        if (state.download_url) { link.href = state.download_url; link.hidden = false; }
+        return state.finished;
+    }
+    function poll() {
+        fetch(panel.dataset.url, {headers: {"Accept": "application/json"}, credentials: "same-origin"})
+            .then(function (response) { return response.json(); })
+            .then(function (state) { if (!show(state)) { setTimeout(poll, panel.dataset.poll * 1000); } })
+            .catch(function () { setTimeout(poll, panel.dataset.poll * 3000); });
+    }
+    {% if not state.finished %}setTimeout(poll, panel.dataset.poll * 1000);{% endif %}
+})();
+</script>
+{% endblock %}

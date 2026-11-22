@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# The distribution is "django-reportkit"; the import name is "django_reportkit".
+name = "django-reportkit"
+version = "0.1.0"
+description = "Django reports on top of pyreportkit: model reports with filters and totals, paginated previews, and streamed or background exports to PDF, Excel and Word."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Abdullah Alaidrous" }]
+keywords = ["django", "report", "reporting", "pdf", "excel", "docx", "arabic", "rtl"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Framework :: Django :: 5.2",
+    "Intended Audience :: Developers",
+    "Natural Language :: Arabic",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business",
+]
+dependencies = [
+    "Django>=4.2",
+    "pyreportkit>=0.2.0",  # ReportBuilder, export_to, QRCode and Chart arrive after 0.1.0.
+]
+
+[project.optional-dependencies]
+pdf = ["pyreportkit[pdf]"]
+excel = ["pyreportkit[excel]"]
+word = ["pyreportkit[word]"]
+celery = ["celery>=5.3"]
+all = ["pyreportkit[all]", "celery>=5.3"]
+test = ["pytest>=8", "pytest-django>=4.8"]
+
+[project.urls]
+Homepage = "https://github.com/abdalaidrous/django-reportkit"
+Repository = "https://github.com/abdalaidrous/django-reportkit"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+django_reportkit = ["templates/**/*", "locale/**/*"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+pythonpath = [".", "src"]

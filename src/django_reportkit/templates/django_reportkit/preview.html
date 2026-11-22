@@ -1,0 +1,35 @@
+{% extends "django_reportkit/base.html" %}
+{% load i18n %}
+{% block title %}{{ report.get_title }}{% endblock %}
+{% block content %}
+<section class="rk-panel">
+    <div class="rk-toolbar">
+        {% if form %}
+        <form method="get" class="rk-filters">
+            {% for field in form %}
+            <div>{{ field.label_tag }}{{ field }}{{ field.errors }}</div>
+            {% endfor %}
+            <button type="submit" class="rk-button rk-button--primary">{% trans "Apply" %}</button>
+        </form>
+        {% endif %}
+        {% if document %}
+        <div>
+            {% for label, url in downloads %}<a class="rk-button" href="{{ url }}">{{ label }}</a> {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+{% if document %}
+<iframe class="rk-frame" title="{{ report.get_title }}" srcdoc="{{ document }}"></iframe>
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="rk-pages" aria-label="{% trans 'Pages' %}">
+    {% if page_obj.has_previous %}<a class="rk-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">{% trans "Previous" %}</a>{% endif %}
+    <span class="rk-muted">{% blocktrans with number=page_obj.number pages=page_obj.paginator.num_pages count=page_obj.paginator.count %}Page {{ number }} of {{ pages }} — {{ count }} rows{% endblocktrans %}</span>
+    {% if page_obj.has_next %}<a class="rk-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">{% trans "Next" %}</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p class="rk-message">{% trans "Please correct the report filters." %}</p>
+{% endif %}
+{% endblock %}
