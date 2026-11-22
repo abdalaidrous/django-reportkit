@@ -43,6 +43,7 @@ test = ["pytest>=8", "pytest-django>=4.8", "djangorestframework>=3.14"]
 [project.urls]
 Homepage = "https://github.com/abdalaidrous/django-reportkit"
 Repository = "https://github.com/abdalaidrous/django-reportkit"
+Changelog = "https://github.com/abdalaidrous/django-reportkit/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

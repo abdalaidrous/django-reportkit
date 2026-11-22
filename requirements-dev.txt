@@ -1,0 +1,5 @@
+# Development environment: the package in editable mode with every exporter, Celery, REST framework, the test runner
+# and the release tools. PDF export also needs the Pango system libraries; on Windows run the tests in Docker.
+-e .[all,test]
+build>=1.2
+twine>=5
