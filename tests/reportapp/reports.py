@@ -1,6 +1,6 @@
 from django import forms
 
-from django_reportkit import Column, Count, ModelReport, Sum
+from django_reportkit import Column, Count, ModelReport, Sum, register
 
 from .models import Movement
 
@@ -10,6 +10,7 @@ class MovementFilterForm(forms.Form):
     account = forms.CharField(required=False)
 
 
+@register
 class MovementReport(ModelReport):
     title = "تقرير الحركة المالية"
     model = Movement
@@ -33,11 +34,13 @@ class MovementReport(ModelReport):
         return {"amount": totals["amount"]}
 
 
+@register
 class PublicMovementReport(MovementReport):
     slug = "public-movements"
     login_required = False
 
 
+@register
 class StaffReport(MovementReport):
     slug = "staff-movements"
     permission_required = "reportapp.view_movement"

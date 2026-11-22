@@ -11,3 +11,11 @@ class ReportKitConfig(AppConfig):
     label = "django_reportkit"
     verbose_name = _("Reports")
     default_auto_field = "django.db.models.BigAutoField"
+
+    def ready(self):
+        """
+        Import every installed app's reports module, so reports registered with @register are known at startup.
+        """
+        from django.utils.module_loading import autodiscover_modules
+
+        autodiscover_modules("reports")

@@ -52,6 +52,21 @@ class TestPreviewApi:
         assert APIClient().get(reverse("public-movements-api-preview")).status_code == 200
 
 
+class TestHtmlApi:
+
+    def test_one_page_as_html_with_full_totals(self, api, movements):
+        response = api.get(reverse("movement-report-api-html"), {"page": 2})
+        assert response.status_code == 200 and response["Content-Type"].startswith("text/html")
+        html = response.content.decode("utf-8")
+        assert html.startswith("<!DOCTYPE html>") and "000003" in html and "000004" in html and "000001" not in html
+        assert "1,500.00" in html
+        assert (response["X-Report-Page"], response["X-Report-Pages"], response["X-Report-Count"]) == ("2", "3", "5")
+
+    def test_invalid_filters_are_json(self, api, movements):
+        response = api.get(reverse("movement-report-api-html"), {"date_from": "x"})
+        assert response.status_code == 400 and response.json()["code"] == "report_filter"
+
+
 class TestExportApi:
 
     def test_small_export_is_the_file(self, api, movements):
@@ -86,3 +101,25 @@ class TestExportApi:
     def test_jobs_belong_to_their_user(self, api, django_user_model):
         job = ReportJob.objects.create(report="x", format="html", user=django_user_model.objects.create_user("owner"))
         assert api.get(reverse("django_reportkit_api:job", kwargs={"job_id": job.pk})).status_code == 404
+
+
+class TestGenericApi:
+    """
+    One set of URLs for every registered report, addressed by slug.
+    """
+
+    def test_list_shows_the_reports_the_user_may_open(self, api, movements):
+        slugs = [report["slug"] for report in api.get(reverse("django_reportkit_api:reports")).json()]
+        assert slugs == ["movement-report", "public-movements"]  # staff-movements needs a permission.
+
+    def test_any_report_by_slug(self, api, movements):
+        data = api.get(reverse("django_reportkit_api:preview", kwargs={"report": "movement-report"}), {"page": 2}).json()
+        assert data["count"] == 5 and data["downloads"]["pdf"].startswith("http://testserver/api/reports/movement-report/export/pdf/")
+        html = api.get(reverse("django_reportkit_api:html", kwargs={"report": "public-movements"}))
+        assert html.status_code == 200 and html["X-Report-Count"] == "5"
+        exported = api.get(reverse("django_reportkit_api:export", kwargs={"report": "movement-report", "export_format": "html"}))
+        assert "000005" in download(exported).decode("utf-8")
+
+    def test_unknown_or_forbidden_reports(self, api, movements):
+        assert api.get(reverse("django_reportkit_api:preview", kwargs={"report": "nothing"})).status_code == 404
+        assert api.get(reverse("django_reportkit_api:html", kwargs={"report": "staff-movements"})).status_code == 403

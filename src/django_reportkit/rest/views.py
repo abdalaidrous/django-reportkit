@@ -1,5 +1,5 @@
 from django.core.exceptions import ImproperlyConfigured
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -13,14 +13,30 @@ from ..jobs.models import ReportJob
 from ..jobs.service import ReportJobs
 from ..jobs.storage import job_storage
 from ..reports.params import ReportParams
+from ..reports.registry import ReportRegistry
 from .errors import error_response
 from .permissions import ReportPermission
-from .serializers import job_data, page_data
+from .serializers import job_data, page_data, report_data
+
+
+class ReportListAPIView(APIView):
+    """
+    List registered reports accessible to the authenticated user.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Return the reports visible to the user.
+        """
+        reports = (report_data(report_class, request) for report_class in ReportRegistry.all() if report_class.has_permission(request.user))
+        return Response(list(reports))
 
 
 class ReportAPIMixin:
     """
-    Build the report from the API request using the configured report class and DRF permissions.
+    Resolve and initialize reports from API requests.
     """
 
     report_class = None
@@ -28,53 +44,92 @@ class ReportAPIMixin:
 
     def get_report_class(self):
         """
-        Return the configured report class or raise a configuration error.
+        Resolve the configured or registered report class.
         """
-        if self.report_class is None:
-            raise ImproperlyConfigured(f"{type(self).__name__} must define report_class.")
-        return self.report_class
+        if self.report_class is not None:
+            return self.report_class
+
+        if "report" not in self.kwargs:
+            raise ImproperlyConfigured(f"{type(self).__name__} needs report_class or a <report> URL argument.")
+
+        report_class = ReportRegistry.get(self.kwargs["report"])
+
+        if report_class is None:
+            raise Http404
+
+        return report_class
 
     def get_report(self):
         """
-        Return the report bound to the request parameters and requesting user.
+        Initialize the report with request parameters.
         """
         return self.get_report_class()(ReportParams.from_request(self.request))
 
 
 class ReportPreviewAPIView(ReportAPIMixin, APIView):
     """
-    Return one page of report rows, prepared totals, columns and available export links.
+    Return paginated report data with prepared totals and metadata.
     """
 
-    def get(self, request):
+    def get(self, request, **kwargs):
         """
-        Return the requested preview page as JSON.
+        Return the requested report page as JSON.
         """
         report = self.get_report()
+
         try:
-            return Response(page_data(report, report.get_page(request.query_params.get("page")), request))
+            page = report.get_page(request.query_params.get("page"))
+            return Response(page_data(report, page, request))
         except APIException:
             raise
         except Exception as error:
             return error_response(error, report)
 
 
-class ReportExportAPIView(ReportAPIMixin, APIView):
+class ReportHtmlAPIView(ReportAPIMixin, APIView):
     """
-    Export small reports directly or return a background job for large reports.
+    Render a report preview page as a complete HTML document.
     """
 
-    def get(self, request, export_format):
+    def get(self, request, **kwargs):
         """
-        Export the report or start a background job according to its export policy.
+        Return the requested HTML page with pagination headers.
         """
         report = self.get_report()
 
         try:
-            export = get_format(report, export_format)
-            report.filters  # Validate the filters before counting, so bad filters fail fast with their field errors.
-            rows = report.count()
-            delivery = ExportPolicy.decide(export, rows, report.formats)
+            page = report.get_page(request.query_params.get("page"))
+            return self.render_page(report, page)
+        except APIException:
+            raise
+        except Exception as error:
+            return error_response(error, report)
+
+    @staticmethod
+    def render_page(report, page):
+        """
+        Render the HTML response and attach pagination metadata.
+        """
+        response = HttpResponse(report.html(page.object_list), content_type="text/html; charset=utf-8")
+        response["X-Report-Page"] = page.number
+        response["X-Report-Pages"] = page.paginator.num_pages
+        response["X-Report-Count"] = page.paginator.count
+        return response
+
+
+class ReportExportAPIView(ReportAPIMixin, APIView):
+    """
+    Export reports directly or schedule large exports in the background.
+    """
+
+    def get(self, request, export_format, **kwargs):
+        """
+        Select the export delivery strategy and execute it.
+        """
+        report = self.get_report()
+
+        try:
+            export, rows, delivery = self.prepare_export(report, export_format)
 
             if delivery is Delivery.BACKGROUND:
                 return self.start_background(request, report, export, rows)
@@ -86,40 +141,48 @@ class ReportExportAPIView(ReportAPIMixin, APIView):
             return error_response(error, report)
 
     @staticmethod
+    def prepare_export(report, export_format):
+        """
+        Validate filters and determine the export delivery strategy.
+        """
+        export = get_format(report, export_format)
+        report.filters
+        rows = report.count()
+        delivery = ExportPolicy.decide(export, rows, report.formats)
+        return export, rows, delivery
+
+    @staticmethod
     def start_background(request, report, export, rows):
         """
-        Create a background export for the authenticated user and return its status URL.
+        Create a background export job and return its status URL.
         """
         if not request.user.is_authenticated:
             raise NotAuthenticated("Authentication is required for background exports.")
 
-        data = job_data(ReportJobs.start(report, export, rows), request)
+        job = ReportJobs.start(report, export, rows)
+        data = job_data(job, request)
         return Response(data, status=status.HTTP_202_ACCEPTED, headers={"Location": data["status_url"]})
 
     @staticmethod
     def download(report, export):
         """
-        Generate and stream the export while ensuring the temporary file is closed on failure.
+        Generate and stream the report export.
         """
         spool = ExportRunner.to_temporary_file(report, export)
-
-        try:
-            return FileResponse(spool, as_attachment=True, filename=export.filename(report.get_slug()), content_type=export.content_type)
-        except Exception:
-            spool.close()
-            raise
+        filename = export.filename(report.get_slug())
+        return create_file_response(spool, filename, export.content_type)
 
 
 class JobAPIMixin:
     """
-    Load background jobs accessible to the authenticated requesting user.
+    Resolve background jobs accessible to the authenticated user.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get_job(self, job_id):
         """
-        Return the requested job or raise Http404 when it is inaccessible.
+        Return an accessible background job or raise Http404.
         """
         job = get_object_or_404(ReportJob, pk=job_id)
 
@@ -136,7 +199,7 @@ class ReportJobAPIView(JobAPIMixin, APIView):
 
     def get(self, request, job_id):
         """
-        Return the job state as JSON.
+        Return the background job status as JSON.
         """
         return Response(job_data(self.get_job(job_id), request))
 
@@ -148,30 +211,47 @@ class ReportJobDownloadAPIView(JobAPIMixin, APIView):
 
     def get(self, request, job_id):
         """
-        Stream the stored file or raise Http404 when it is unavailable or expired.
+        Download the completed export or raise Http404.
         """
         job = self.get_job(job_id)
+        self.validate_download(job)
+        return self.download(job)
 
-        if not self.is_downloadable(job):
+    @classmethod
+    def validate_download(cls, job):
+        """
+        Validate the job state, expiration, and stored file.
+        """
+        if not cls.is_downloadable(job):
             raise Http404
 
-        storage = job_storage()
-
-        if not storage.exists(job.file):
+        if not job_storage().exists(job.file):
             raise Http404
-
-        export = FORMATS.get(job.format)
-        file = storage.open(job.file, "rb")
-
-        try:
-            return FileResponse(file, as_attachment=True, filename=job.filename, content_type=export.content_type if export else None)
-        except Exception:
-            file.close()
-            raise
 
     @staticmethod
     def is_downloadable(job):
         """
-        Return whether the job has a completed, unexpired export file.
+        Check whether the job has a completed and unexpired file.
         """
         return job.status == ReportJob.Status.DONE and bool(job.file) and (job.expires_at is None or job.expires_at > timezone.now())
+
+    @staticmethod
+    def download(job):
+        """
+        Open and stream the stored export file.
+        """
+        export = FORMATS.get(job.format)
+        file = job_storage().open(job.file, "rb")
+        content_type = export.content_type if export else None
+        return create_file_response(file, job.filename, content_type)
+
+
+def create_file_response(file, filename, content_type):
+    """
+    Create a streaming response and close the file on failure.
+    """
+    try:
+        return FileResponse(file, as_attachment=True, filename=filename, content_type=content_type)
+    except Exception:
+        file.close()
+        raise

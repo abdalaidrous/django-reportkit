@@ -86,12 +86,29 @@ reports whose rows come from somewhere else: implement `get_rows()`, `count()`, 
 
 ## REST API (Django REST Framework)
 
+Register the reports once and include one set of URLs that serves all of them by slug (for a generic report
+viewer):
+
 ```python
-urlpatterns = [
-    path("api/reports/movements/", include(MovementReport.api_urls())),   # JSON preview and exports
-    path("api/reports/", include("django_reportkit.rest.urls")),          # job status and downloads
-]
+# ledger/reports.py (every installed app's reports.py is imported at startup)
+from django_reportkit import ModelReport, register
+
+@register
+class MovementReport(ModelReport):          # slug "movement-report"; set slug = "..." to choose it
+    ...
+
+# urls.py
+urlpatterns = [path("api/reports/", include("django_reportkit.rest.urls"))]
 ```
+
+| Request | Response |
+|---|---|
+| `GET api/reports/` | The registered reports the user may open: `[{"slug", "title", "formats", "preview_url", "html_url"}]`. |
+| `GET api/reports/<slug>/?page=2&...` | JSON page (below). |
+| `GET api/reports/<slug>/html/?page=2&...` | One page as a complete HTML document laid out like the PDF; `X-Report-Page`, `X-Report-Pages` and `X-Report-Count` headers (list them in `CORS_EXPOSE_HEADERS` for another origin). |
+| `GET api/reports/<slug>/export/<format>/?...` | The file, or `202` with a background job. |
+
+A single report can also get its own URLs: `path("api/movements/", include(MovementReport.api_urls()))`.
 
 Authentication is whatever `REST_FRAMEWORK` configures (session, token, JWT...); the report's `login_required` and
 `permission_required` still apply. `api_urls(authentication_classes=[...], throttle_classes=[...])` passes options to
@@ -99,8 +116,8 @@ the views.
 
 | Request | Response |
 |---|---|
-| `GET api/reports/movements/?page=2&date_from=2026-11-01` | `{"count", "page", "pages", "next", "previous", "columns", "results", "totals", "filters", "downloads"}`; totals cover every filtered row. Invalid filters: `400 {"detail", "code": "report_filter", "errors": {...}}`. |
-| `GET api/reports/movements/export/xlsx/?...` | The file for a small report; `202 Accepted` with the job (and `Location: status_url`) for a large one; `413` with `"code": "export_too_large"` above `MAX_ROWS`. |
+| `GET api/reports/movement-report/?page=2&date_from=2026-11-01` | `{"count", "page", "pages", "next", "previous", "columns", "results", "totals", "filters", "downloads"}`; totals cover every filtered row. Invalid filters: `400 {"detail", "code": "report_filter", "errors": {...}}`. |
+| `GET api/reports/movement-report/export/xlsx/?...` | The file for a small report; `202 Accepted` with the job (and `Location: status_url`) for a large one; `413` with `"code": "export_too_large"` above `MAX_ROWS`. |
 | `GET api/reports/jobs/<id>/` | `{"id", "status", "label", "finished", "error", "rows", "status_url", "download_url", ...}`: poll until `finished`. |
 | `GET api/reports/jobs/<id>/download/` | The stored file, for the job's user. |
 
