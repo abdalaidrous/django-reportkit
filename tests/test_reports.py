@@ -75,6 +75,15 @@ class TestModelReport:
         with pytest.raises(ReportFilterError):
             report(date_from="not a date").count()
 
+    def test_has_permission_applies_login_required(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        from tests.reportapp.reports import PublicMovementReport
+
+        assert not MovementReport.has_permission(AnonymousUser())
+        assert PublicMovementReport.has_permission(AnonymousUser())
+        assert MovementReport.has_permission(User(username="x"))
+
     def test_params_round_trip_through_json(self):
         params = ReportParams(data={"account": ["الصندوق"]}, user_id=3, language="ar")
         assert ReportParams.from_json(params.to_json()) == params
