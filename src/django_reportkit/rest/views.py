@@ -72,7 +72,7 @@ class ReportExportAPIView(ReportAPIMixin, APIView):
 
         try:
             export = get_format(report, export_format)
-            report.filters
+            report.filters  # Validate the filters before counting, so bad filters fail fast with their field errors.
             rows = report.count()
             delivery = ExportPolicy.decide(export, rows, report.formats)
 
