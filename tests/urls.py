@@ -10,4 +10,5 @@ urlpatterns = [
     path("api/reports/movements/", include(MovementReport.api_urls())),
     path("api/reports/public/", include(PublicMovementReport.api_urls())),
     path("api/reports/", include("django_reportkit.rest.urls")),
+    path("outer/reports/", include(("tests.nested_urls", "outer"), namespace="outer")),
 ]

@@ -3,6 +3,24 @@
 All notable changes to django-reportkit. The format follows [Keep a Changelog](https://keepachangelog.com/), and
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-22
+
+### Added
+
+- `Report.request_context(request)`: JSON-ready values a report needs from the request (for example a selected
+  tenant or property id). They are kept in `ReportParams.context`, so background jobs build the same report.
+- `Report.has_request_permission(request)`: access rules that depend on the request, used by the HTML views, the
+  API and the report list (defaults to `has_permission(request.user)`).
+- `ModelReport.prepare_row(row)`: turn stored codes into labels or combine fields, for every row in previews, the API
+  and exports.
+- `django_reportkit.tasks`, so Celery's task autodiscovery finds the export task.
+- The REST API can be included under a project namespace (for example `include(("app.urls", "app"), namespace="reports")`): its links are built in the namespace that served the request.
+
+### Changed
+
+- `PermissionDenied` and `Http404` raised while building a report become friendly 403 and 404 responses
+  (`permission_denied` and `not_found` codes in the API).
+
 ## [0.1.0] - 2026-11-22
 
 ### Added
@@ -20,4 +38,5 @@ versions follow [Semantic Versioning](https://semver.org/).
   one-page HTML documents (`X-Report-*` headers) and exports; per-report `Report.api_urls()`.
 - Friendly error messages and JSON errors with stable codes; details go to the `django_reportkit` logger.
 
+[0.2.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/abdalaidrous/django-reportkit/releases/tag/v0.1.0

@@ -1,7 +1,6 @@
 from django.contrib.auth.mixins import AccessMixin
 from django.core.exceptions import ImproperlyConfigured
 
-from ..reports.params import ReportParams
 
 
 class ReportViewMixin(AccessMixin):
@@ -19,7 +18,7 @@ class ReportViewMixin(AccessMixin):
         report_class = self.get_report_class()
         if report_class.login_required and not request.user.is_authenticated:
             return self.handle_no_permission()
-        if not report_class.has_permission(request.user):
+        if not report_class.has_request_permission(request):
             self.raise_exception = True
             return self.handle_no_permission()
         return super().dispatch(request, *args, **kwargs)
@@ -28,7 +27,8 @@ class ReportViewMixin(AccessMixin):
         """
         Return the report bound to the request parameters.
         """
-        return self.get_report_class()(ReportParams.from_request(self.request))
+        report_class = self.get_report_class()
+        return report_class(report_class.build_params(self.request))
 
     def get_report_class(self):
         """

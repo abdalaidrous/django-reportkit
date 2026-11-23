@@ -44,3 +44,26 @@ class PublicMovementReport(MovementReport):
 class StaffReport(MovementReport):
     slug = "staff-movements"
     permission_required = "reportapp.view_movement"
+
+
+@register
+class AccountScopedReport(MovementReport):
+    """
+    A report scoped by request state (the X-Account header), like a selected tenant, with prepared rows.
+    """
+
+    slug = "account-movements"
+
+    @classmethod
+    def has_request_permission(cls, request):
+        return super().has_request_permission(request) and bool(request.headers.get("X-Account"))
+
+    @classmethod
+    def request_context(cls, request):
+        return {"account": request.headers.get("X-Account")}
+
+    def get_queryset(self):
+        return super().get_queryset().filter(account__name=self.params.context["account"])
+
+    def prepare_row(self, row):
+        return {**row, "voucher": f"V-{row['voucher']}"}

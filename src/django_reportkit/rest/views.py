@@ -12,7 +12,6 @@ from ..exports import Delivery, ExportPolicy, ExportRunner, FORMATS, get_format
 from ..jobs.models import ReportJob
 from ..jobs.service import ReportJobs
 from ..jobs.storage import job_storage
-from ..reports.params import ReportParams
 from ..reports.registry import ReportRegistry
 from .errors import error_response
 from .permissions import ReportPermission
@@ -30,7 +29,7 @@ class ReportListAPIView(APIView):
         """
         Return the reports visible to the user.
         """
-        reports = (report_data(report_class, request) for report_class in ReportRegistry.all() if report_class.has_permission(request.user))
+        reports = (report_data(report_class, request) for report_class in ReportRegistry.all() if report_class.has_request_permission(request))
         return Response(list(reports))
 
 
@@ -63,7 +62,8 @@ class ReportAPIMixin:
         """
         Initialize the report with request parameters.
         """
-        return self.get_report_class()(ReportParams.from_request(self.request))
+        report_class = self.get_report_class()
+        return report_class(report_class.build_params(self.request))
 
 
 class ReportPreviewAPIView(ReportAPIMixin, APIView):

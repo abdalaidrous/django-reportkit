@@ -13,4 +13,4 @@ class ReportPermission(BasePermission):
         report_class = view.get_report_class()
         if report_class.login_required and not (request.user and request.user.is_authenticated):
             return False
-        return report_class.has_permission(request.user)
+        return report_class.has_request_permission(request)

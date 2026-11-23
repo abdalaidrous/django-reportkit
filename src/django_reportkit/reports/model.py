@@ -51,11 +51,18 @@ class ModelReport(Report):
         """
         return [column.field for column in self.get_columns()]
 
+    def prepare_row(self, row):
+        """
+        Return a row ready for display; override to turn stored codes into labels or to combine fields. It receives
+        the values() mapping and runs for every row, in previews, the API and exports.
+        """
+        return row
+
     def get_rows(self):
         """
         Return the rows read lazily, in chunks.
         """
-        return QuerysetRows(self.filtered_queryset, self.fields(), self.chunk_size)
+        return QuerysetRows(self.filtered_queryset, self.fields(), self.chunk_size, self.prepare_row)
 
     def count(self):
         """
@@ -73,4 +80,6 @@ class ModelReport(Report):
         """
         Return one preview page of rows; the paginator counts the filtered rows once.
         """
-        return Paginator(self.filtered_queryset.values(*self.fields()), self.get_paginate_by()).get_page(number)
+        page = Paginator(self.filtered_queryset.values(*self.fields()), self.get_paginate_by()).get_page(number)
+        page.object_list = [self.prepare_row(row) for row in page.object_list]
+        return page

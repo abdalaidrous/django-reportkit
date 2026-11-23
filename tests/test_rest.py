@@ -8,7 +8,7 @@ from django_reportkit.jobs.models import ReportJob
 from .test_reports import movements  # noqa: F401  (fixture)
 
 pytestmark = pytest.mark.django_db
-BACKGROUND = {"DIRECT_LIMITS": {"html": 3}, "JOB_BACKEND": "django_reportkit.jobs.backends.SyncBackend"}
+BACKGROUND = {"DIRECT_LIMITS": {"html": 1}, "JOB_BACKEND": "django_reportkit.jobs.backends.SyncBackend"}
 
 
 @pytest.fixture
@@ -123,3 +123,48 @@ class TestGenericApi:
     def test_unknown_or_forbidden_reports(self, api, movements):
         assert api.get(reverse("django_reportkit_api:preview", kwargs={"report": "nothing"})).status_code == 404
         assert api.get(reverse("django_reportkit_api:html", kwargs={"report": "staff-movements"})).status_code == 403
+
+
+class TestRequestHooks:
+    """
+    request_context, has_request_permission and prepare_row.
+    """
+
+    def url(self, name, **kwargs):
+        return reverse(f"django_reportkit_api:{name}", kwargs={"report": "account-movements", **kwargs})
+
+    def test_request_permission_and_context_scope_the_report(self, api, movements):
+        assert api.get(self.url("preview")).status_code == 403
+        data = api.get(self.url("preview"), HTTP_X_ACCOUNT="الصندوق").json()
+        assert data["count"] == 2 and [row["voucher"] for row in data["results"]] == ["V-000002", "V-000004"]
+        assert "account-movements" not in [report["slug"] for report in api.get(reverse("django_reportkit_api:reports")).json()]
+
+    def test_prepared_rows_reach_exports(self, api, movements):
+        content = download(api.get(self.url("export", export_format="html"), HTTP_X_ACCOUNT="الصندوق")).decode("utf-8")
+        assert "V-000002" in content and "V-000004" in content and "000001" not in content
+
+    @override_settings(REPORTKIT=BACKGROUND)
+    def test_background_jobs_keep_the_request_context(self, api, movements, django_capture_on_commit_callbacks):
+        with django_capture_on_commit_callbacks(execute=True):
+            response = api.get(self.url("export", export_format="html"), HTTP_X_ACCOUNT="البنك")
+        job = ReportJob.objects.get()
+        assert response.status_code == 202
+        assert job.params["context"] == {"account": "البنك"}
+
+
+class TestOuterNamespace:
+    """
+    The generic API included under a project namespace builds its links in that namespace.
+    """
+
+    @override_settings(REPORTKIT=BACKGROUND)
+    def test_links_stay_under_the_outer_namespace(self, api, movements, django_capture_on_commit_callbacks):
+        data = api.get(reverse("outer:django_reportkit_api:preview", kwargs={"report": "movement-report"})).json()
+        assert data["downloads"]["pdf"].startswith("http://testserver/outer/reports/movement-report/export/pdf/")
+        listed = api.get(reverse("outer:django_reportkit_api:reports")).json()
+        assert listed[0]["html_url"].startswith("http://testserver/outer/reports/")
+        with django_capture_on_commit_callbacks(execute=True):
+            response = api.get(reverse("outer:django_reportkit_api:export", kwargs={"report": "movement-report", "export_format": "html"}))
+        job = response.json()
+        assert job["status_url"].startswith("http://testserver/outer/reports/jobs/")
+        assert api.get(job["status_url"]).json()["download_url"].startswith("http://testserver/outer/reports/jobs/")

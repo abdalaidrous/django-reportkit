@@ -56,3 +56,27 @@ class ReportAccessMixin:
 
         required = (cls.permission_required,) if isinstance(cls.permission_required, str) else cls.permission_required
         return bool(user and user.has_perms(required))
+
+    @classmethod
+    def has_request_permission(cls, request):
+        """
+        Return whether the request may use the report; override to check request state such as a selected tenant.
+        """
+        return cls.has_permission(request.user)
+
+    @classmethod
+    def request_context(cls, request):
+        """
+        Return JSON-ready values the report needs from the request (for example the id of the selected property);
+        they are stored with background jobs as ReportParams.context. Raise PermissionDenied or Http404 to refuse.
+        """
+        return {}
+
+    @classmethod
+    def build_params(cls, request):
+        """
+        Return the ReportParams of a request, with the report's request context.
+        """
+        from ..params import ReportParams  # Deferred: params sits beside the mixins package.
+
+        return ReportParams.from_request(request, context=cls.request_context(request))

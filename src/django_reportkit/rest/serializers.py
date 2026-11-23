@@ -1,6 +1,8 @@
 from django.urls import reverse
+from django.utils.translation import get_language
 
 from ..exports import FORMATS
+from ..reports.params import ReportParams
 
 
 GENERIC = "django_reportkit_api"
@@ -25,7 +27,7 @@ def report_url(report_class, request, route, **kwargs):
     """
     Resolve the absolute URL for a report API route.
     """
-    if getattr(request.resolver_match, "namespace", None) == GENERIC:
+    if GENERIC in current_namespaces(request):
         return generic_report_url(report_class, request, route, **kwargs)
 
     return custom_report_url(report_class, request, route, **kwargs)
@@ -35,7 +37,7 @@ def generic_report_url(report_class, request, route, **kwargs):
     """
     Resolve a report URL through the generic API namespace.
     """
-    url = reverse(f"{GENERIC}:{route}", kwargs={"report": report_class.get_slug(), **kwargs})
+    url = reverse(f"{generic_namespace(request)}:{route}", kwargs={"report": report_class.get_slug(), **kwargs})
     return request.build_absolute_uri(url)
 
 
@@ -43,7 +45,8 @@ def custom_report_url(report_class, request, route, **kwargs):
     """
     Resolve a report URL through its dedicated API routes.
     """
-    url = reverse(f"{report_class.get_slug()}-api-{route}", kwargs=kwargs)
+    prefix = "".join(f"{namespace}:" for namespace in current_namespaces(request))
+    url = reverse(f"{prefix}{report_class.get_slug()}-api-{route}", kwargs=kwargs)
     return request.build_absolute_uri(url)
 
 
@@ -68,7 +71,7 @@ def report_data(report_class, request):
     """
     return {
         "slug": report_class.get_slug(),
-        "title": str(report_class.title),
+        "title": report_class(ReportParams(language=get_language() or "en")).get_title(),
         "formats": available_formats(report_class.formats),
         "preview_url": generic_url(request, "preview", report=report_class.get_slug()),
         "html_url": generic_url(request, "html", report=report_class.get_slug()),
@@ -86,7 +89,25 @@ def generic_url(request, route, **kwargs):
     """
     Build an absolute URL for a generic API route.
     """
-    return request.build_absolute_uri(reverse(f"{GENERIC}:{route}", kwargs=kwargs))
+    return request.build_absolute_uri(reverse(f"{generic_namespace(request)}:{route}", kwargs=kwargs))
+
+
+def current_namespaces(request):
+    """
+    Return the namespaces of the URL that served the request, outermost first.
+    """
+    match = getattr(request, "resolver_match", None)
+    return list(match.namespaces) if match is not None else []
+
+
+def generic_namespace(request):
+    """
+    Return the full namespace of the generic API, including any outer namespace it is included under.
+    """
+    namespaces = current_namespaces(request)
+    if GENERIC in namespaces:
+        return ":".join(namespaces[:namespaces.index(GENERIC) + 1])
+    return GENERIC
 
 
 def page_data(report, page, request):

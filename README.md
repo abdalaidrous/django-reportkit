@@ -123,6 +123,31 @@ the views.
 
 Every error is JSON with a friendly `detail` and a stable `code`; the traceback only goes to the logs.
 
+## Reports scoped by the request
+
+When a report depends on request state, such as a tenant or property selected by a header, resolve it once from the
+request and keep it in the report's parameters, so background jobs rebuild the same report:
+
+```python
+@register
+class PropertyMovementReport(ModelReport):
+    @classmethod
+    def has_request_permission(cls, request):            # who may open the report
+        return request.user.is_authenticated and request.property is not None
+
+    @classmethod
+    def request_context(cls, request):                    # JSON-ready, stored with background jobs
+        return {"property_id": str(request.property.pk)}
+
+    def get_queryset(self):
+        return Movement.objects.filter(property_id=self.params.context["property_id"])
+
+    def prepare_row(self, row):                           # stored codes -> labels, for every row
+        return {**row, "direction": DIRECTIONS[row["direction"]]}
+```
+
+Raise `PermissionDenied` or `Http404` from `request_context` to refuse a request.
+
 ## How exports are delivered
 
 `ExportPolicy` decides from the row count:

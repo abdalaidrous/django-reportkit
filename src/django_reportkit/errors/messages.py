@@ -1,3 +1,5 @@
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
+from django.http import Http404
 from django.utils.translation import gettext as _
 
 from .exceptions import ExportTooLargeError, ReportFilterError, UnknownFormatError
@@ -20,6 +22,10 @@ def friendly_message(error):
         return message
     if isinstance(error, ImportError):
         return _("This format is not available on the server right now.")
+    if isinstance(error, PermissionDenied):
+        return str(error) or _("You do not have permission to view this report.")
+    if isinstance(error, (Http404, ObjectDoesNotExist)):
+        return _("The requested report data was not found.")
     return _("The report could not be created. Please try again later.")
 
 
@@ -33,4 +39,8 @@ def status_code(error):
         return 413
     if isinstance(error, ImportError):
         return 503
+    if isinstance(error, PermissionDenied):
+        return 403
+    if isinstance(error, (Http404, ObjectDoesNotExist)):
+        return 404
     return 500
