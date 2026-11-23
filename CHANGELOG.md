@@ -3,6 +3,21 @@
 All notable changes to django-reportkit. The format follows [Keep a Changelog](https://keepachangelog.com/), and
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-11-23
+
+### Added
+
+- The REST API is served by ViewSets (`ReportViewSet`, `ReportJobViewSet` in `django_reportkit.rest.views`),
+  which a project can also register in its own router.
+- Pages (JSON and HTML) go through DRF's pagination class (`DEFAULT_PAGINATION_CLASS` or `pagination_class`), so the
+  API follows the project's page format and parameters, with `title`, `columns`, `totals`, `filters` and
+  `downloads` added. Without a pagination class nothing changes (`?page=`, `?page_size=`).
+
+### Fixed
+
+- Background exports require a login again (an anonymous request to a public report could start a job owned by no
+  one).
+
 ## [0.3.0] - 2026-11-23
 
 ### Added
@@ -51,6 +66,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   one-page HTML documents (`X-Report-*` headers) and exports; per-report `Report.api_urls()`.
 - Friendly error messages and JSON errors with stable codes; details go to the `django_reportkit` logger.
 
+[0.3.1]: https://github.com/abdalaidrous/django-reportkit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/abdalaidrous/django-reportkit/releases/tag/v0.1.0
