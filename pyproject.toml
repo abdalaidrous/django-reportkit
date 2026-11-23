@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 # The distribution is "django-reportkit"; the import name is "django_reportkit".
 name = "django-reportkit"
-version = "0.2.0"
+version = "0.3.0"
 description = "Django reports on top of pyreportkit: model reports with filters and totals, paginated previews, and streamed or background exports to PDF, Excel and Word."
 readme = "README.md"
 requires-python = ">=3.10"

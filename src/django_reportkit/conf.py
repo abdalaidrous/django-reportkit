@@ -2,6 +2,7 @@ from django.conf import settings
 
 DEFAULTS = {
     "PAGINATE_BY": 50,
+    "MAX_PAGE_SIZE": 100,  # The largest ?page_size= a client may ask for.
     # Rows above which a format is generated in the background instead of during the request; None never moves it.
     "DIRECT_LIMITS": {"pdf": 2000, "docx": 2000, "xlsx": 20000, "xlsx-data": 100000, "html": 5000},
     # Rows above which a format is refused with a suggestion to use another one; None has no limit.

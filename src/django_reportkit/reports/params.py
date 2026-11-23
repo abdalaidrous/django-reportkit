@@ -4,7 +4,7 @@ from django.http import QueryDict
 from django.utils.translation import get_language
 
 # Query parameters that drive the views, not the report filters.
-RESERVED = ("page", "format")
+RESERVED = ("page", "page_size", "format")
 RTL_LANGUAGES = ("ar", "fa", "he", "ur")
 
 

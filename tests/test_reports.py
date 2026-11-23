@@ -226,3 +226,18 @@ class TestJobs:
         with override_settings(REPORTKIT={"MAX_ROWS": {"pdf": 10}}), pytest.raises(ExportTooLargeError) as raised:
             ExportPolicy.decide(FORMATS["pdf"], 11, MovementReport.formats)
         assert raised.value.alternative == "xlsx-data"
+
+
+@override_settings(TIME_ZONE="Asia/Riyadh")
+def test_aware_datetimes_become_naive_local_time():
+    """
+    Rows carry aware datetimes in the current time zone without tzinfo (Excel stores none); other values stay as they are.
+    """
+    from datetime import datetime, timezone as dt_timezone
+
+    from django_reportkit.reports.model import local_datetime
+
+    value = local_datetime(datetime(2026, 11, 13, 21, 47, 54, tzinfo=dt_timezone.utc))
+    assert value == datetime(2026, 11, 14, 0, 47, 54) and value.tzinfo is None
+    assert local_datetime(date(2026, 11, 13)) == date(2026, 11, 13)
+    assert local_datetime("text") == "text"

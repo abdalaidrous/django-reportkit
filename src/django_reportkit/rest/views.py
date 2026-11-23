@@ -3,7 +3,7 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import APIException, NotAuthenticated
+from rest_framework.exceptions import APIException
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,22 +22,20 @@ class ReportListAPIView(APIView):
     """
     List registered reports accessible to the authenticated user.
     """
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """
         Return the reports visible to the user.
         """
-        reports = (report_data(report_class, request) for report_class in ReportRegistry.all() if report_class.has_request_permission(request))
-        return Response(list(reports))
+        reports = [report_data(report_class, request) for report_class in ReportRegistry.all() if report_class.has_request_permission(request)]
+        return Response(reports)
 
 
 class ReportAPIMixin:
     """
     Resolve and initialize reports from API requests.
     """
-
     report_class = None
     permission_classes = [ReportPermission]
 
@@ -48,11 +46,11 @@ class ReportAPIMixin:
         if self.report_class is not None:
             return self.report_class
 
-        if "report" not in self.kwargs:
+        slug = self.kwargs.get("report")
+        if slug is None:
             raise ImproperlyConfigured(f"{type(self).__name__} needs report_class or a <report> URL argument.")
 
-        report_class = ReportRegistry.get(self.kwargs["report"])
-
+        report_class = ReportRegistry.get(slug)
         if report_class is None:
             raise Http404
 
@@ -65,6 +63,24 @@ class ReportAPIMixin:
         report_class = self.get_report_class()
         return report_class(report_class.build_params(self.request))
 
+    def get_page(self, report):
+        """
+        Return the requested report page using the current pagination parameters.
+        """
+        params = self.request.query_params
+        return report.get_page(params.get("page"), params.get("page_size"))
+
+    def handle_report(self, report, callback):
+        """
+        Execute a report operation and convert unexpected errors into API responses.
+        """
+        try:
+            return callback()
+        except APIException:
+            raise
+        except Exception as error:
+            return error_response(error, report)
+
 
 class ReportPreviewAPIView(ReportAPIMixin, APIView):
     """
@@ -76,14 +92,7 @@ class ReportPreviewAPIView(ReportAPIMixin, APIView):
         Return the requested report page as JSON.
         """
         report = self.get_report()
-
-        try:
-            page = report.get_page(request.query_params.get("page"))
-            return Response(page_data(report, page, request))
-        except APIException:
-            raise
-        except Exception as error:
-            return error_response(error, report)
+        return self.handle_report(report, lambda: Response(page_data(report, self.get_page(report), request)))
 
 
 class ReportHtmlAPIView(ReportAPIMixin, APIView):
@@ -96,14 +105,7 @@ class ReportHtmlAPIView(ReportAPIMixin, APIView):
         Return the requested HTML page with pagination headers.
         """
         report = self.get_report()
-
-        try:
-            page = report.get_page(request.query_params.get("page"))
-            return self.render_page(report, page)
-        except APIException:
-            raise
-        except Exception as error:
-            return error_response(error, report)
+        return self.handle_report(report, lambda: self.render_page(report, self.get_page(report)))
 
     @staticmethod
     def render_page(report, page):
@@ -127,18 +129,18 @@ class ReportExportAPIView(ReportAPIMixin, APIView):
         Select the export delivery strategy and execute it.
         """
         report = self.get_report()
+        return self.handle_report(report, lambda: self.execute_export(request, report, export_format))
 
-        try:
-            export, rows, delivery = self.prepare_export(report, export_format)
+    def execute_export(self, request, report, export_format):
+        """
+        Execute the selected export delivery strategy.
+        """
+        export, rows, delivery = self.prepare_export(report, export_format)
 
-            if delivery is Delivery.BACKGROUND:
-                return self.start_background(request, report, export, rows)
+        if delivery is Delivery.BACKGROUND:
+            return self.start_background(request, report, export, rows)
 
-            return self.download(report, export)
-        except APIException:
-            raise
-        except Exception as error:
-            return error_response(error, report)
+        return self.download(report, export)
 
     @staticmethod
     def prepare_export(report, export_format):
@@ -156,9 +158,6 @@ class ReportExportAPIView(ReportAPIMixin, APIView):
         """
         Create a background export job and return its status URL.
         """
-        if not request.user.is_authenticated:
-            raise NotAuthenticated("Authentication is required for background exports.")
-
         job = ReportJobs.start(report, export, rows)
         data = job_data(job, request)
         return Response(data, status=status.HTTP_202_ACCEPTED, headers={"Location": data["status_url"]})
@@ -177,7 +176,6 @@ class JobAPIMixin:
     """
     Resolve background jobs accessible to the authenticated user.
     """
-
     permission_classes = [IsAuthenticated]
 
     def get_job(self, job_id):
@@ -241,8 +239,13 @@ class ReportJobDownloadAPIView(JobAPIMixin, APIView):
         Open and stream the stored export file.
         """
         export = FORMATS.get(job.format)
-        file = job_storage().open(job.file, "rb")
         content_type = export.content_type if export else None
+
+        try:
+            file = job_storage().open(job.file, "rb")
+        except (FileNotFoundError, OSError):
+            raise Http404 from None
+
         return create_file_response(file, job.filename, content_type)
 
 

@@ -1,3 +1,6 @@
+
+from django import forms
+from django.forms.utils import pretty_name
 from django.urls import reverse
 from django.utils.translation import get_language
 
@@ -7,6 +10,17 @@ from ..reports.params import ReportParams
 
 GENERIC = "django_reportkit_api"
 COLUMN_FIELDS = ("key", "title", "subtitle", "format", "decimals", "currency", "date_format", "align")
+CHOICE_TYPES = ("choice", "multi_select")
+
+FILTER_TYPES = (
+    (forms.DateTimeField, "datetime"),
+    (forms.DateField, "date"),
+    (forms.UUIDField, "uuid"),
+    (forms.IntegerField, "integer"),
+    (forms.BooleanField, "boolean"),
+    (forms.MultipleChoiceField, "multi_select"),
+    (forms.ChoiceField, "choice"),
+)
 
 
 def columns_data(report):
@@ -29,7 +43,6 @@ def report_url(report_class, request, route, **kwargs):
     """
     if GENERIC in current_namespaces(request):
         return generic_report_url(report_class, request, route, **kwargs)
-
     return custom_report_url(report_class, request, route, **kwargs)
 
 
@@ -37,17 +50,17 @@ def generic_report_url(report_class, request, route, **kwargs):
     """
     Resolve a report URL through the generic API namespace.
     """
-    url = reverse(f"{generic_namespace(request)}:{route}", kwargs={"report": report_class.get_slug(), **kwargs})
-    return request.build_absolute_uri(url)
+    return generic_url(request, route, report=report_class.get_slug(), **kwargs)
 
 
 def custom_report_url(report_class, request, route, **kwargs):
     """
     Resolve a report URL through its dedicated API routes.
     """
-    prefix = "".join(f"{namespace}:" for namespace in current_namespaces(request))
-    url = reverse(f"{prefix}{report_class.get_slug()}-api-{route}", kwargs=kwargs)
-    return request.build_absolute_uri(url)
+    prefix = ":".join(current_namespaces(request))
+    name = f"{report_class.get_slug()}-api-{route}"
+    namespace = f"{prefix}:{name}" if prefix else name
+    return request.build_absolute_uri(reverse(namespace, kwargs=kwargs))
 
 
 def downloads_data(report, request):
@@ -55,7 +68,7 @@ def downloads_data(report, request):
     Serialize available export URLs with the current filters.
     """
     suffix = query_suffix(report.params.urlencode())
-    return {name: report_url(type(report), request, "export", export_format=name) + suffix for name in report.formats if name in FORMATS}
+    return {name: report_url(type(report), request, "export", export_format=name) + suffix for name in available_formats(report.formats)}
 
 
 def query_suffix(query):
@@ -69,27 +82,55 @@ def report_data(report_class, request):
     """
     Serialize a registered report for the generic viewer.
     """
+    report = report_class(ReportParams(language=get_language() or "en"))
+    slug = report_class.get_slug()
+
     return {
-        "slug": report_class.get_slug(),
-        "title": report_class(ReportParams(language=get_language() or "en")).get_title(),
+        "slug": slug,
+        "title": report.get_title(),
         "formats": available_formats(report_class.formats),
-        "preview_url": generic_url(request, "preview", report=report_class.get_slug()),
-        "html_url": generic_url(request, "html", report=report_class.get_slug()),
+        "filters": filters_data(report_class),
+        "preview_url": generic_url(request, "preview", report=slug),
+        "html_url": generic_url(request, "html", report=slug),
     }
+
+
+def filters_data(report_class):
+    """
+    Describe the report's filter form fields (name, type, label, required, choices) for clients that build the form.
+    """
+    if report_class.filter_form is None:
+        return []
+    return [filter_data(name, field) for name, field in report_class.filter_form().fields.items()]
+
+
+def filter_data(name, field):
+    """
+    Describe one filter form field.
+    """
+    kind = next((kind for field_class, kind in FILTER_TYPES if isinstance(field, field_class)), "string")
+    data = {"name": name, "type": kind, "label": str(field.label or pretty_name(name)), "required": field.required}
+
+    if kind in CHOICE_TYPES:
+        data["choices"] = [str(value) for value, _ in field.choices if value not in ("", None)]
+
+    return data
 
 
 def available_formats(formats):
     """
     Return supported export formats.
     """
-    return [name for name in formats if name in FORMATS]
+    supported = set(FORMATS)
+    return [name for name in formats if name in supported]
 
 
 def generic_url(request, route, **kwargs):
     """
     Build an absolute URL for a generic API route.
     """
-    return request.build_absolute_uri(reverse(f"{generic_namespace(request)}:{route}", kwargs=kwargs))
+    url = reverse(f"{generic_namespace(request)}:{route}", kwargs=kwargs)
+    return request.build_absolute_uri(url)
 
 
 def current_namespaces(request):
@@ -105,8 +146,10 @@ def generic_namespace(request):
     Return the full namespace of the generic API, including any outer namespace it is included under.
     """
     namespaces = current_namespaces(request)
+
     if GENERIC in namespaces:
         return ":".join(namespaces[:namespaces.index(GENERIC) + 1])
+
     return GENERIC
 
 

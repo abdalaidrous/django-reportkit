@@ -1,7 +1,9 @@
+from datetime import datetime
 from functools import cached_property
 
 from django.core.exceptions import ImproperlyConfigured
 from django.core.paginator import Paginator
+from django.utils import timezone
 
 from .base import Report
 from .rows import QuerysetRows
@@ -58,11 +60,18 @@ class ModelReport(Report):
         """
         return row
 
+    def read_row(self, row):
+        """
+        Show aware datetimes in the current time zone as naive values (Excel and Word store no time zone), then
+        prepare the row.
+        """
+        return self.prepare_row({key: local_datetime(value) for key, value in row.items()})
+
     def get_rows(self):
         """
         Return the rows read lazily, in chunks.
         """
-        return QuerysetRows(self.filtered_queryset, self.fields(), self.chunk_size, self.prepare_row)
+        return QuerysetRows(self.filtered_queryset, self.fields(), self.chunk_size, self.read_row)
 
     def count(self):
         """
@@ -76,10 +85,17 @@ class ModelReport(Report):
         """
         return self.filtered_queryset.aggregate(**self.totals) if self.totals else None
 
-    def get_page(self, number):
+    def get_page(self, number, page_size=None):
         """
         Return one preview page of rows; the paginator counts the filtered rows once.
         """
-        page = Paginator(self.filtered_queryset.values(*self.fields()), self.get_paginate_by()).get_page(number)
-        page.object_list = [self.prepare_row(row) for row in page.object_list]
+        page = Paginator(self.filtered_queryset.values(*self.fields()), self.get_paginate_by(page_size)).get_page(number)
+        page.object_list = [self.read_row(row) for row in page.object_list]
         return page
+
+
+def local_datetime(value):
+    """
+    Return an aware datetime in the current time zone without its tzinfo; any other value unchanged.
+    """
+    return timezone.localtime(value).replace(tzinfo=None) if isinstance(value, datetime) and timezone.is_aware(value) else value

@@ -15,7 +15,6 @@ class ReportPreviewView(ReportViewMixin, View):
     Show one page of the report as HTML, with its filters, page links and download links; the totals cover every
     filtered row, not only the page shown.
     """
-
     template_name = "django_reportkit/preview.html"
 
     def get(self, request):
@@ -25,7 +24,7 @@ class ReportPreviewView(ReportViewMixin, View):
         report = self.get_report()
 
         try:
-            page = report.get_page(request.GET.get("page"))
+            page = report.get_page(request.GET.get("page"), request.GET.get("page_size"))
             document = self.render_page(report, page)
         except ReportFilterError:
             return self.render_preview(request, report, status=400)
@@ -48,7 +47,8 @@ class ReportPreviewView(ReportViewMixin, View):
         import reportkit.exporters.html  # noqa: F401
 
         with override(report.params.language):
-            return HtmlExporter().export(report.document(rows=page.object_list), report.context()).decode("utf-8")
+            document = report.document(rows=page.object_list)
+            return HtmlExporter().export(document, report.context()).decode("utf-8")
 
     def context(self, report, page, document):
         """

@@ -3,6 +3,19 @@
 All notable changes to django-reportkit. The format follows [Keep a Changelog](https://keepachangelog.com/), and
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-23
+
+### Added
+
+- `?page_size=` on previews and the API, up to the new `MAX_PAGE_SIZE` setting (100 by default).
+- The report list describes each report's filters (`name`, `type`, `label`, `required`, `choices`), so a client can
+  build the filter form from the API.
+
+### Fixed
+
+- Aware datetimes are shown in the current time zone and passed on without tzinfo, so the Excel export no longer
+  fails on them ("Excel cannot store time zones") and every format shows local time instead of UTC.
+
 ## [0.2.0] - 2026-11-22
 
 ### Added
@@ -38,5 +51,6 @@ versions follow [Semantic Versioning](https://semver.org/).
   one-page HTML documents (`X-Report-*` headers) and exports; per-report `Report.api_urls()`.
 - Friendly error messages and JSON errors with stable codes; details go to the `django_reportkit` logger.
 
+[0.3.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/abdalaidrous/django-reportkit/releases/tag/v0.1.0

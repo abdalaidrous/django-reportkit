@@ -168,3 +168,23 @@ class TestOuterNamespace:
         job = response.json()
         assert job["status_url"].startswith("http://testserver/outer/reports/jobs/")
         assert api.get(job["status_url"]).json()["download_url"].startswith("http://testserver/outer/reports/jobs/")
+
+
+class TestClientPageSizeAndFilters:
+    """
+    ?page_size= within MAX_PAGE_SIZE, and the filter metadata of the report list.
+    """
+
+    def test_page_size_is_capped(self, api, movements):
+        data = api.get(reverse("movement-report-api-preview"), {"page_size": 4}).json()
+        assert (data["pages"], len(data["results"]), data["filters"]) == (2, 4, {})
+        with override_settings(REPORTKIT={"MAX_PAGE_SIZE": 3}):
+            assert len(api.get(reverse("movement-report-api-preview"), {"page_size": 50}).json()["results"]) == 3
+        assert len(api.get(reverse("movement-report-api-preview"), {"page_size": "x"}).json()["results"]) == 2
+
+    def test_report_list_describes_the_filters(self, api, movements):
+        report = next(item for item in api.get(reverse("django_reportkit_api:reports")).json() if item["slug"] == "movement-report")
+        assert report["filters"] == [
+            {"name": "date_from", "type": "date", "label": "Date from", "required": False},
+            {"name": "account", "type": "string", "label": "Account", "required": False},
+        ]
