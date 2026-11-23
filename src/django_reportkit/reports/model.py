@@ -67,6 +67,18 @@ class ModelReport(Report):
         """
         return self.prepare_row({key: local_datetime(value) for key, value in row.items()})
 
+    def get_page_source(self):
+        """
+        Return the filtered values() queryset, which a DRF pagination class pages in the database.
+        """
+        return self.filtered_queryset.values(*self.fields())
+
+    def read_page_row(self, row):
+        """
+        Return a row of the paged queryset ready for display.
+        """
+        return self.read_row(row)
+
     def get_rows(self):
         """
         Return the rows read lazily, in chunks.

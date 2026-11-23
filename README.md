@@ -123,6 +123,23 @@ the views.
 
 Every error is JSON with a friendly `detail` and a stable `code`; the traceback only goes to the logs.
 
+### Pagination and ViewSets
+
+The URLs are served by two ViewSets, `django_reportkit.rest.views.ReportViewSet` (list, retrieve, `html`,
+`export/<format>`) and `ReportJobViewSet` (retrieve, `download`). A page goes through DRF's pagination class
+(`DEFAULT_PAGINATION_CLASS`, or `pagination_class` on a subclass or in `api_urls(pagination_class=...)`), so the
+JSON page and the HTML page follow the project's own format and query parameters; the report adds `title`,
+`columns`, `totals`, `filters` and `downloads` to the paginated response, and the pagination parameters never reach
+the filters. Without a pagination class the API uses `?page=` and `?page_size=` and the format above.
+
+The ViewSets can also be registered in the project's own router; keep `django_reportkit.rest.urls` included as
+well, since the export and job links point at its URL names:
+
+```python
+router.register("reports/jobs", ReportJobViewSet, basename="report-job")
+router.register("reports", ReportViewSet, basename="report")
+```
+
 ## Reports scoped by the request
 
 When a report depends on request state, such as a tenant or property selected by a header, resolve it once from the
@@ -165,6 +182,7 @@ failure), never a server error page.
 ```python
 REPORTKIT = {
     "PAGINATE_BY": 50,
+    "MAX_PAGE_SIZE": 100,                                             # the largest ?page_size=
     "DIRECT_LIMITS": {"pdf": 2000, "docx": 2000, "xlsx": 20000, "xlsx-data": 100000, "html": 5000},
     "MAX_ROWS": {"pdf": 50000, "docx": 50000, "xlsx": 100000, "xlsx-data": None, "html": 20000},
     "JOB_BACKEND": "django_reportkit.jobs.backends.ThreadBackend",   # or SyncBackend, CeleryBackend

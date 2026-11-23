@@ -42,6 +42,18 @@ class Report(ReportAccessMixin, ReportFilterMixin, ReportDocumentMixin, ABC):
         Return a Django Page whose object_list holds the rows of one preview page.
         """
 
+    def get_page_source(self):
+        """
+        Return what a DRF pagination class pages: the prepared rows as a list (ModelReport pages its queryset).
+        """
+        return list(self.get_rows())
+
+    def read_page_row(self, row):
+        """
+        Return a row of get_page_source() ready for display.
+        """
+        return row
+
     def get_paginate_by(self, page_size=None):
         """
         Return the number of rows on one page: the requested size up to MAX_PAGE_SIZE, or the report's default.

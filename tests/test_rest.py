@@ -182,9 +182,52 @@ class TestClientPageSizeAndFilters:
             assert len(api.get(reverse("movement-report-api-preview"), {"page_size": 50}).json()["results"]) == 3
         assert len(api.get(reverse("movement-report-api-preview"), {"page_size": "x"}).json()["results"]) == 2
 
+    def test_viewset_pages_through_the_project_pagination_class(self, movements, django_user_model):
+        from rest_framework.routers import SimpleRouter
+        from rest_framework.test import APIRequestFactory, force_authenticate
+
+        from django_reportkit.rest.views import ReportJobViewSet, ReportViewSet
+        from tests.reportapp.pages import RecordsPagination
+
+        router = SimpleRouter()
+        router.register("reports/jobs", ReportJobViewSet, basename="report-job")
+        router.register("reports", ReportViewSet, basename="report")
+        assert {"report-list", "report-detail", "report-html", "report-export", "report-job-detail", "report-job-download"} <= {url.name for url in router.urls}
+
+        user = django_user_model.objects.create_user("viewset")
+        request = APIRequestFactory().get("/reports/movement-report/", {"p": 2, "length": 2})
+        force_authenticate(request, user)
+        data = ReportViewSet.as_view({"get": "retrieve"}, pagination_class=RecordsPagination)(request, report="movement-report").data
+        assert (data["page"], data["num_pages"], data["recordsTotal"]) == (2, 3, 5)
+        assert [row["voucher"] for row in data["data"]] == ["000003", "000004"]
+        assert data["totals"]["amount"] == 1500 and data["filters"] == {}
+
+        request = APIRequestFactory().get("/reports/movement-report/html/", {"p": 3})
+        force_authenticate(request, user)
+        response = ReportViewSet.as_view({"get": "html"}, pagination_class=RecordsPagination)(request, report="movement-report")
+        assert (response["X-Report-Page"], response["X-Report-Pages"], response["X-Report-Count"]) == ("3", "3", "5")
+
+    def test_limit_offset_pagination(self, movements, django_user_model):
+        from rest_framework.pagination import LimitOffsetPagination
+        from rest_framework.test import APIRequestFactory, force_authenticate
+
+        from django_reportkit.rest.views import ReportViewSet
+
+        user = django_user_model.objects.create_user("offset")
+        request = APIRequestFactory().get("/reports/movement-report/", {"limit": 2, "offset": 3})
+        force_authenticate(request, user)
+        data = ReportViewSet.as_view({"get": "retrieve"}, pagination_class=LimitOffsetPagination)(request, report="movement-report").data
+        assert (data["count"], [row["voucher"] for row in data["results"]], data["filters"]) == (5, ["000004", "000005"], {})
+
+        request = APIRequestFactory().get("/reports/movement-report/html/", {"limit": 2})
+        force_authenticate(request, user)
+        response = ReportViewSet.as_view({"get": "html"}, pagination_class=LimitOffsetPagination)(request, report="movement-report")
+        assert response["X-Report-Count"] == "5" and not response.has_header("X-Report-Page")
+
     def test_report_list_describes_the_filters(self, api, movements):
         report = next(item for item in api.get(reverse("django_reportkit_api:reports")).json() if item["slug"] == "movement-report")
         assert report["filters"] == [
             {"name": "date_from", "type": "date", "label": "Date from", "required": False},
             {"name": "account", "type": "string", "label": "Account", "required": False},
         ]
+

@@ -57,10 +57,9 @@ def custom_report_url(report_class, request, route, **kwargs):
     """
     Resolve a report URL through its dedicated API routes.
     """
-    prefix = ":".join(current_namespaces(request))
-    name = f"{report_class.get_slug()}-api-{route}"
-    namespace = f"{prefix}:{name}" if prefix else name
-    return request.build_absolute_uri(reverse(namespace, kwargs=kwargs))
+    namespaces = current_namespaces(request)
+    name = ":".join((*namespaces, f"{report_class.get_slug()}-api-{route}"))
+    return request.build_absolute_uri(reverse(name, kwargs=kwargs))
 
 
 def downloads_data(report, request):
@@ -101,6 +100,7 @@ def filters_data(report_class):
     """
     if report_class.filter_form is None:
         return []
+
     return [filter_data(name, field) for name, field in report_class.filter_form().fields.items()]
 
 
@@ -121,8 +121,7 @@ def available_formats(formats):
     """
     Return supported export formats.
     """
-    supported = set(FORMATS)
-    return [name for name in formats if name in supported]
+    return [name for name in formats if name in FORMATS]
 
 
 def generic_url(request, route, **kwargs):
@@ -157,11 +156,17 @@ def page_data(report, page, request):
     """
     Serialize a report page with its prepared totals and export links.
     """
+    return {**pagination_data(page), "results": list(page.object_list), **report_meta(report, request)}
+
+
+def report_meta(report, request):
+    """
+    Serialize what a page carries besides its rows: the title, columns, totals over every filtered row, the
+    filters and the export links.
+    """
     return {
         "title": report.get_title(),
-        **pagination_data(page),
         "columns": columns_data(report),
-        "results": list(page.object_list),
         "totals": report.get_totals(),
         "filters": report.params.data,
         "downloads": downloads_data(report, request),
