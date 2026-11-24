@@ -8,7 +8,6 @@ class ReportDocumentMixin:
     """
     Build presentation-only ReportKit documents from prepared report data.
     """
-
     title = ""
     columns = ()
     total_label = _("Total")
@@ -100,12 +99,13 @@ class ReportDocumentMixin:
         """
         return ReportBuilder(self.get_title()).page(**self.page)
 
-    def html(self, rows=None):
+    def html(self, rows=None, page=None, pages=None):
         """
-        Render the report document as a complete HTML string.
+        Render the report document as a complete HTML string; page and pages say which preview page the rows are
+        (is_last_page), for a document drawn page by page.
         """
         import reportkit.exporters.html  # noqa: F401
         from reportkit.exporters.html.exporter import HtmlExporter
 
-        with override(self.params.language):
+        with self.drawing_page(page, pages), override(self.params.language):
             return HtmlExporter().export(self.document(rows), self.context()).decode("utf-8")

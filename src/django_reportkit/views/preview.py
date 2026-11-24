@@ -46,7 +46,7 @@ class ReportPreviewView(ReportViewMixin, View):
         """
         import reportkit.exporters.html  # noqa: F401
 
-        with override(report.params.language):
+        with report.drawing_page(page.number, page.paginator.num_pages), override(report.params.language):
             document = report.document(rows=page.object_list)
             return HtmlExporter().export(document, report.context()).decode("utf-8")
 

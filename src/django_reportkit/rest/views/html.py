@@ -14,10 +14,12 @@ class ReportHtmlMixin(ReportPaginationMixin, ReportAPIMixin):
         Return the page's HTML with X-Report-Page, X-Report-Pages and X-Report-Count headers (those it knows).
         """
         page = self.paginate_report(report)
-        response = HttpResponse(report.html(page.rows), content_type="text/html; charset=utf-8")
+        response = HttpResponse(report.html(page.rows, page=page.number, pages=page.pages), content_type="text/html; charset=utf-8")
+
         for header, value in (("X-Report-Page", page.number), ("X-Report-Pages", page.pages), ("X-Report-Count", page.count)):
             if value is not None:
                 response[header] = value
+
         return response
 
 

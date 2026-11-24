@@ -241,3 +241,29 @@ def test_aware_datetimes_become_naive_local_time():
     assert value == datetime(2026, 11, 14, 0, 47, 54) and value.tzinfo is None
     assert local_datetime(date(2026, 11, 13)) == date(2026, 11, 13)
     assert local_datetime("text") == "text"
+
+
+
+def test_is_last_page_follows_the_preview_page():
+    """
+    A whole document is the last page; a preview page is the last one only when its number reaches the page count,
+    and the page is forgotten once its rendering ends.
+    """
+    report = MovementReport(ReportParams())
+    assert report.is_last_page
+    with report.drawing_page(1, 3):
+        assert not report.is_last_page
+    assert report.preview_page is None and report.is_last_page
+    with report.drawing_page(3, 3):
+        assert report.is_last_page
+    with report.drawing_page(None, None):
+        assert report.is_last_page
+
+
+def test_html_page_does_not_outlive_the_call(movements):
+    """
+    html() with a page draws that page; a later html() without one draws a whole document again.
+    """
+    report = MovementReport(ReportParams())
+    report.html(page=1, pages=3)
+    assert report.preview_page is None and report.is_last_page

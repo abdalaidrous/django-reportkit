@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 
 from ..conf import reportkit_settings
 from .mixins import ReportAccessMixin, ReportDocumentMixin, ReportFilterMixin
@@ -23,6 +24,33 @@ class Report(ReportAccessMixin, ReportFilterMixin, ReportDocumentMixin, ABC):
         Bind the report to its parameters.
         """
         self.params = params if params is not None else ReportParams()
+        # The preview page being drawn, as (number, pages), set only while drawing_page() renders it; None otherwise.
+        self.preview_page = None
+
+    @contextmanager
+    def drawing_page(self, page=None, pages=None):
+        """
+        Draw within this block as preview page `page` of `pages` (no page: a whole document); the page never outlives
+        the block, so a later rendering starts clean.
+        """
+        self.preview_page = (page, pages) if page is not None else None
+
+        try:
+            yield self
+        finally:
+            self.preview_page = None
+
+    @property
+    def is_last_page(self):
+        """
+        Return whether the document drawn ends the report: an export, or the last preview page. A report shows
+        what closes it (a summary, totals over every row) on this page only.
+        """
+        if self.preview_page is None:
+            return True
+
+        number, pages = self.preview_page
+        return number is None or pages is None or number >= pages
 
     @abstractmethod
     def get_rows(self):
