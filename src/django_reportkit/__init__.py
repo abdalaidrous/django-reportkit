@@ -6,5 +6,5 @@ from django.db.models import Avg, Count, Max, Min, Sum
 
 from .reports import Column, ModelReport, Report, ReportParams, register
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __all__ = ["Avg", "Column", "Count", "Max", "Min", "ModelReport", "Report", "ReportParams", "Sum", "register"]

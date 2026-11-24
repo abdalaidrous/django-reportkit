@@ -3,6 +3,15 @@
 All notable changes to django-reportkit. The format follows [Keep a Changelog](https://keepachangelog.com/), and
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-11-24
+
+### Added
+
+- `Report.is_last_page`: while one preview page is drawn (`Report.drawing_page(page, pages)`, used by `html()`, the
+  HTML API and the preview view), the report knows whether it is the last one, so it can draw what closes it (a
+  summary over every row) there only. The page is set for that rendering only; exports are whole documents and
+  always count as the last page.
+
 ## [0.3.1] - 2026-11-23
 
 ### Added
@@ -66,6 +75,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   one-page HTML documents (`X-Report-*` headers) and exports; per-report `Report.api_urls()`.
 - Friendly error messages and JSON errors with stable codes; details go to the `django_reportkit` logger.
 
+[0.3.2]: https://github.com/abdalaidrous/django-reportkit/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/abdalaidrous/django-reportkit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/abdalaidrous/django-reportkit/compare/v0.1.0...v0.2.0
